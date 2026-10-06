@@ -1,4 +1,4 @@
-# Stronghold Protocol Trainer｜卫戍协议本地修改器
+# Stronghold Protocol Trainer｜明日方舟-卫戍协议 本地修改器
 
 **想试一套成型阵容，又不想反复刷商店？** 给 [卫戍协议：盟约 / Stronghold Protocol](https://github.com/sganggs/Stronghold-Protocol) 加一个本地修改面板：设置金币、调整盟约层数，点击图标获得物品和本局可用干员。
 
