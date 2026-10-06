@@ -1,0 +1,6 @@
+dist/
+runtime-data/
+node_modules/
+*.log
+.DS_Store
+test-output/

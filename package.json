@@ -1,0 +1,13 @@
+{
+  "name": "stronghold-protocol-trainer",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "description": "Stronghold Protocol Trainer | 卫戍协议本地修改器",
+  "homepage": "https://github.com/Doya16/Stronghold-Protocol-Trainer#readme",
+  "repository": { "type": "git", "url": "https://github.com/Doya16/Stronghold-Protocol-Trainer.git" },
+  "bugs": { "url": "https://github.com/Doya16/Stronghold-Protocol-Trainer/issues" },
+  "scripts": { "test": "node --test test/*.test.mjs" },
+  "engines": { "node": "^22.0.0 || ^24.0.0" }
+}
