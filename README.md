@@ -1,3 +1,7 @@
+<!-- README language switch -->
+[![中文](https://img.shields.io/badge/%E4%B8%AD%E6%96%87-1677ff?style=for-the-badge)](README.md) [![English](https://img.shields.io/badge/English-555555?style=for-the-badge)](README.en.md)
+<!-- /README language switch -->
+
 # Stronghold Protocol Trainer｜明日方舟-卫戍协议 本地修改器
 
 **想试一套成型阵容，又不想反复刷商店？** 给 [卫戍协议：盟约 / Stronghold Protocol](https://github.com/sganggs/Stronghold-Protocol) 加一个本地修改面板：设置金币、调整盟约层数，点击图标获得物品和本局可用干员。
