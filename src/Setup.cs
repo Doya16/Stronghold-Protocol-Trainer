@@ -24,7 +24,7 @@ internal static class Setup
         Application.EnableVisualStyles();
         var form = new Form { Text = "Stronghold Protocol Trainer | 卫戍协议本地修改器 " + Common.Version, ClientSize = new Size(680, 330), StartPosition = FormStartPosition.CenterScreen, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, Font = new Font("Microsoft YaHei UI", 10) };
         var title = new Label { Text = "选择本体目录，安装卫戍协议本地修改器", Left = 22, Top = 22, Width = 620, Height = 32, Font = new Font("Microsoft YaHei UI", 15, FontStyle.Bold) };
-        var hint = new Label { Text = "支持本体 v0.1.3 · Windows x64 · 需要 Node.js 22/24 与 Chrome/Edge\n本体应已完成快速开始；安装前请关闭正在运行的扩展游戏。", Left = 22, Top = 60, Width = 640, Height = 50 };
+        var hint = new Label { Text = "支持本体 " + Common.SupportedGameVersions + " · Windows x64 · Node.js 22/24 与 Chrome/Edge\n本体应已完成快速开始；安装前请关闭正在运行的扩展游戏。", Left = 22, Top = 60, Width = 640, Height = 50 };
         var path = new TextBox { Left = 22, Top = 121, Width = 530, Height = 30, AccessibleName = "卫戍协议本体根目录" };
         var browse = new Button { Text = "浏览…", Left = 565, Top = 119, Width = 92, Height = 33 };
         var status = new Label { Text = "仅安装扩展代码。物品图标和游戏数据从本体读取。", Left = 22, Top = 218, Width = 635, Height = 94 };
@@ -137,7 +137,8 @@ internal static class Setup
                         if (source == null) throw new Exception("安装包不完整：" + name);
                         using (var output = File.Create(Path.Combine(stage, name))) source.CopyTo(output);
                     }
-                    File.WriteAllText(Path.Combine(stage, "installation.json"), "{\"product\":\"" + Common.Product + "\",\"version\":\"" + Common.Version + "\",\"gameVersion\":\"0.1.3\"}", new UTF8Encoding(false));
+                    string gameVersion = (string)Common.Json(Path.Combine(game, "package.json"))["version"];
+                    File.WriteAllText(Path.Combine(stage, "installation.json"), "{\"product\":\"" + Common.Product + "\",\"version\":\"" + Common.Version + "\",\"gameVersion\":\"" + gameVersion + "\"}", new UTF8Encoding(false));
                     if (Directory.Exists(addon)) {
                         // Only owned files may be replaced. Preserve unknown files by refusing the upgrade.
                         foreach (string f in Directory.GetFiles(addon)) if (Array.IndexOf(Payload, Path.GetFileName(f)) < 0 && Path.GetFileName(f) != "installation.json" && Path.GetFileName(f) != "disabled") throw new Exception("扩展目录含额外文件，请先移出：" + f);

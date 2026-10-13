@@ -23,8 +23,18 @@ try {
     }
     New-Item -ItemType Directory -Path (Join-Path $target 'public\assets') -Force | Out-Null
     $addon=Join-Path $target 'sp-local-tools'
+    $manifestPath = Join-Path $target 'package.json'
+    $originalManifest = [IO.File]::ReadAllText($manifestPath)
+    $badVersion = $originalManifest | ConvertFrom-Json
+    $badVersion.version = '99.0.0'
+    [IO.File]::WriteAllText($manifestPath, ($badVersion | ConvertTo-Json -Depth 10))
+    Invoke-Setup 'install' 1
+    if (Test-Path -LiteralPath $addon) { throw 'Unsupported game version was installed' }
+    [IO.File]::WriteAllText($manifestPath, $originalManifest)
     Invoke-Setup 'install'
     if (!(Test-Path -LiteralPath (Join-Path $addon 'StrongholdLocalTools.exe'))) { throw 'Missing launcher' }
+    $installed = Get-Content -LiteralPath (Join-Path $addon 'installation.json') -Raw | ConvertFrom-Json
+    if ($installed.gameVersion -ne ($originalManifest | ConvertFrom-Json).version) { throw 'Wrong gameVersion recorded' }
     Invoke-Setup 'install'
     Invoke-Setup 'disable'
     if (!(Test-Path -LiteralPath (Join-Path $addon 'disabled'))) { throw 'Disable marker missing' }

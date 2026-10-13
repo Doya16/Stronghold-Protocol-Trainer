@@ -1,4 +1,4 @@
-param([string]$Version = '0.2.0')
+param([string]$Version = '0.3.0')
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 & (Join-Path $PSScriptRoot 'build.ps1')
@@ -6,7 +6,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
 $dist=Join-Path $repoRoot 'dist'
 $bundle=Join-Path $dist ('Stronghold-Protocol-Trainer-v'+$Version+'-win-x64')
 New-Item -ItemType Directory -Path $bundle -Force | Out-Null
-foreach($file in @('README.md','LICENSE','NOTICE.md','CHANGELOG.md')) { Copy-Item -LiteralPath (Join-Path $repoRoot $file) -Destination $bundle -Force }
+foreach($file in @('README.md','README.en.md','LICENSE','NOTICE.md','CHANGELOG.md')) { Copy-Item -LiteralPath (Join-Path $repoRoot $file) -Destination $bundle -Force }
 Copy-Item -LiteralPath (Join-Path $dist 'Stronghold-Protocol-Trainer-Setup.exe') -Destination $bundle -Force
 Copy-Item -LiteralPath (Join-Path $repoRoot 'docs') -Destination $bundle -Recurse -Force
 $zip=$bundle+'.zip'

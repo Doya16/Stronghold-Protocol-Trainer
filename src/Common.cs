@@ -8,7 +8,8 @@ using System.Web.Script.Serialization;
 
 internal static class Common
 {
-    public const string Version = "0.2.0";
+    public const string Version = "0.3.0";
+    public const string SupportedGameVersions = "v0.1.3 / v0.2.5";
     public const string Folder = "sp-local-tools";
     public const string Product = "Stronghold-Protocol-Trainer";
     public static string Full(string path)
@@ -37,7 +38,7 @@ internal static class Common
         if (!File.Exists(manifest)) throw new Exception("请选择本体根目录（其中应包含 package.json、server、public）。");
         var pkg = Json(manifest);
         if (!pkg.ContainsKey("name") || (string)pkg["name"] != "stronghold-protocol-alliance") throw new Exception("该目录不是卫戍协议本体。");
-        if (!pkg.ContainsKey("version") || (string)pkg["version"] != "0.1.3") throw new Exception("当前扩展已验证兼容本体 v0.1.3。此版本尚未支持，请先确认兼容性。");
+        if (!pkg.ContainsKey("version") || ((string)pkg["version"] != "0.1.3" && (string)pkg["version"] != "0.2.5")) throw new Exception("当前扩展支持本体 " + SupportedGameVersions + "。此版本尚未支持，请先确认兼容性。");
         foreach (string rel in new [] { "server/index.js", "server/match/PlayerState.js", "shared/constants.js", "public/index.html", "public/js/ui/assetUrls.js", "data/items.json", "data/chess.json", "data/assets.json", "node_modules/ws/package.json" })
             if (!File.Exists(Path.Combine(root, rel.Replace('/', '\\')))) throw new Exception("本体缺少 " + rel + "。请先按照本体 README 完成快速开始。");
         if (!Directory.Exists(Path.Combine(root, "public/assets"))) throw new Exception("本体缺少素材，请使用包含素材的完整包。");

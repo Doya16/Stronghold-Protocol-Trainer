@@ -48,7 +48,7 @@ test('a real loopback player can edit gold and layers after normal room creation
     const layerFrame = await client.waitFor('m.private',m => m.bonds.some(b => b.bondId === bond.id && b.layers === 99));
     assert.ok(layerFrame.bonds.some(b => b.bondId === bond.id && b.layers === 99));
     assert.equal(serverPlayer.battleInput().bonds[bond.id].layers,99);
-    const catalog=await (await fetch(srv.url+'/__local-tools/catalog?'+new URLSearchParams({roomCode:match.code,matchId:match.matchId}))).json();
+    const catalog=await (await fetch(srv.url+'/__local-tools/catalog?'+new URLSearchParams({roomCode:match.code,matchId:match.matchId,playerId:player.id}))).json();
     const unit=catalog.chess.find(x=>x.name==='艾丝黛尔');
     const item=catalog.items.find(x=>x.name==='维式重锤' && !x.golden);
     const operatorGrant=await edit({field:'chess',operation:'grant',id:unit.id});

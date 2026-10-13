@@ -20,8 +20,14 @@ export function localMatchId(match) {
 }
 
 const safeIcon = url => typeof url === 'string' && /^\/assets\/[\w./-]+$/.test(url) && !url.includes('..') ? url : null;
-export function catalogOf(m) {
-  const banned = new Set(m.bannedChess);
+export function catalogOf(m, player = null) {
+  const gd = player?.gd || m.gd;
+  const banned = new Set([...m.bannedChess, ...(player?.diyBanned || [])]);
+  const preset = m.gd.visibleChess.filter(id => !banned.has(id) && m.pool.has(id));
+  // 0.2.5 self-selected operators live in a per-player data view and private stock.
+  // Never expose empty slots, another player's picks, or picks banned for this match.
+  const diy = Object.keys(player?.diy || {}).filter(id =>
+    !banned.has(id) && player.diyStock?.has(id) && gd.chess(id)?.diyFor && !gd.chess(id)?.isGolden);
   const sort = (a, b) => a.tier - b.tier || Number(a.golden) - Number(b.golden) || a.name.localeCompare(b.name, 'zh-CN');
   return {
     items: Object.entries(m.gd.raw.items).filter(([, it]) => ['EQUIP', 'MAGIC'].includes(it.itemType) && it.name).map(([id, it]) => ({
@@ -29,9 +35,9 @@ export function catalogOf(m) {
       type: it.itemType === 'MAGIC' ? '道具' : '装备', description: it.desc || '',
       icon: safeIcon(itemIconUrl(m.gd.raw.assets, it)),
     })).sort(sort),
-    chess: m.gd.visibleChess.filter(id => !banned.has(id) && m.pool.has(id)).map(id => {
-      const c = m.gd.chess(id);
-      return { id, name: c.name, tier: c.tier, golden: false, type: '干员',
+    chess: [...preset, ...diy].map(id => {
+      const c = gd.chess(id);
+      return { id, name: c.name, tier: c.tier, golden: false, type: c.diyFor ? '自选干员' : '干员',
         description: (c.bonds || []).map(id => m.gd.bond(id)?.name || id).join(' · '),
         icon: safeIcon(chessAvatarUrl(m.gd.raw.assets, c)) };
     }).sort(sort),
@@ -68,11 +74,12 @@ export function applyEdit(lobby, body) {
   if (!p || p.left || !p.alive || p.ready) throw fail('该玩家当前不可修改，请先取消准备。', 409);
   if (field === 'item' || field === 'chess') {
     if (operation !== 'grant') throw fail('获得操作无效。');
-    const allowed = catalogOf(m)[field === 'item' ? 'items' : 'chess'];
+    const allowed = catalogOf(m, p)[field === 'item' ? 'items' : 'chess'];
     const entry = typeof id === 'string' && allowed.find(x => x.id === id);
     if (!entry) throw fail(field === 'chess' ? '该干员在本局被禁用或不可获得。' : '请选择列表中的物品。');
     const merges = field === 'item' ? p.completesItemMerge(id) : p.completesChessMerge(id);
     if (!p.hand.some(x => !x) && !p.temp.some(x => !x) && !merges) throw fail('整备区和暂存区已满，请先腾出位置。', 409);
+    if (field === 'item' && m.itemPool && !m.itemPool.canGain(id)) throw fail('该物品的本局共享库存不足，未发放。本体会统计全队持有的普通及强化装备。', 409);
     // Native acquisition runs onGain, automatic merges, equipment hooks and pool accounting.
     const piece = field === 'item' ? p.acquireItem(id, { source: 'local-tools' }) : p.acquireChess(id, { source: 'local-tools' });
     if (!piece) throw fail('未能获得，请检查整备区容量。', 409);
@@ -127,13 +134,15 @@ export function attachLocalTools(srv) {
       res.end(fs.readFileSync(path.join(here, 'panel.js'))); return;
     }
     if (pathname === PREFIX + 'state' && req.method === 'GET') {
-      json(res, 200, { apiVersion: 3, token, fundsCap: FUNDS_CAP, layerCap: BOND_LAYER_CAP, matches: stateOf(srv.lobby) }); return;
+      json(res, 200, { apiVersion: 4, token, fundsCap: FUNDS_CAP, layerCap: BOND_LAYER_CAP, matches: stateOf(srv.lobby) }); return;
     }
     if (pathname === PREFIX + 'catalog' && req.method === 'GET') {
       const params = new URL(req.url, origin).searchParams;
       const m = srv.lobby.rooms.get(params.get('roomCode'))?.match;
       if (!m || m.ended || m.disposed || localMatchId(m) !== params.get('matchId')) throw fail('对局已变化，请刷新列表。', 409);
-      json(res, 200, { matchId: localMatchId(m), ...catalogOf(m) }); return;
+      const player = m.players.get(params.get('playerId'));
+      if (!player || player.left) throw fail('请选择当前对局的修改对象。', 409);
+      json(res, 200, { matchId: localMatchId(m), playerId: player.playerId, ...catalogOf(m, player) }); return;
     }
     if (pathname !== PREFIX + 'edit') throw fail('接口不存在。', 404);
     if (req.method !== 'POST') throw fail('仅接受 POST。', 405);

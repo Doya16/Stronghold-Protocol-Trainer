@@ -1,8 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-const { makeMatch } = await gameImport('test/match/harness.js');
-import { startServer, gameImport } from '../payload/game-api.mjs';
+import fs from 'node:fs';
+import path from 'node:path';
+const { makeMatch, DATA } = await gameImport('test/match/harness.js');
+import { startServer, gameImport, gameRoot } from '../payload/game-api.mjs';
 import { attachLocalTools, applyEdit, localMatchId, catalogOf } from '../payload/local-tools.mjs';
 
 function fixture(options = {}) {
@@ -80,8 +82,10 @@ test('HTTP extension is opt-in, validates local access, and applies edits to a r
     assert.equal(state.matches[0].players.length,2);
     assert.ok((await (await fetch(srv.url)).text()).includes('/__local-tools/panel.js'));
     assert.equal((await fetch(srv.url + '/__local-tools/panel.js')).status,200);
-    assert.equal(state.apiVersion,3);
-    const catalog = await (await fetch(srv.url + '/__local-tools/catalog?' + new URLSearchParams({roomCode:'TEST',matchId:body.matchId}))).json();
+    assert.equal(state.apiVersion,4);
+    const catalog = await (await fetch(srv.url + '/__local-tools/catalog?' + new URLSearchParams({roomCode:'TEST',matchId:body.matchId,playerId:'p_0'}))).json();
+    assert.equal(catalog.playerId,'p_0');
+    assert.equal((await fetch(srv.url + '/__local-tools/catalog?' + new URLSearchParams({roomCode:'TEST',matchId:body.matchId,playerId:'missing'}))).status,409);
     assert.ok(catalog.items.length > 0 && catalog.chess.length > 0);
     assert.ok(catalog.chess.every(x => !h.m.bannedChess.includes(x.id)));
     assert.equal((await fetch(srv.url + '/__local-tools/catalog?roomCode=TEST&matchId=old')).status,409);
@@ -163,7 +167,8 @@ test('overflow uses temporary slots, full inventory rejects without losing objec
   try {
     const p=h.ps('p_0'), c=catalogOf(h.m);
     const normal=c.items.find(x=>x.name==='维式重锤' && !x.golden);
-    const filler=c.items.find(x=>x.golden);
+    // A consumable has no shared equipment stock cap in 0.2.5, so this tests capacity independently.
+    const filler=c.items.find(x=>x.type==='道具' && !h.m.gd.item(x.id).goldenId && !h.m.gd.item(x.id).upgradeChessId);
     const grant=id=>applyEdit(lobby,{...body,field:'item',operation:'grant',id});
     grant(normal.id);
     while(p.hand.some(x=>!x)) grant(filler.id);
@@ -195,6 +200,86 @@ test('every catalog item can be granted from current game data and synchronized'
 
 test('extension refuses a server listening outside loopback', () => {
   assert.throws(() => attachLocalTools({server:{address:() => ({address:'0.0.0.0',port:3000})}}), /loopback/);
+});
+
+test('shared item stock exhaustion rejects both player and AI grants before mutation', {skip:!DATA.backups?.diy}, () => {
+  const {h,lobby,body}=fixture();
+  try {
+    const p=h.ps('p_0');
+    const entry=catalogOf(h.m).items.find(x=>x.name==='商业包装方案' && !x.golden);
+    assert.ok(entry);
+    const grant=()=>applyEdit(lobby,{...body,field:'item',operation:'grant',id:entry.id});
+    grant(); grant();
+    assert.equal(h.m.itemPool.canGain(entry.id),false);
+    const before=JSON.stringify(p.privateView());
+    assert.throws(grant,/共享库存不足/);
+    assert.equal(JSON.stringify(p.privateView()),before);
+    const aiBefore=JSON.stringify(h.ps('ai_0').privateView());
+    assert.throws(()=>applyEdit(lobby,{...body,playerId:'ai_0',field:'item',operation:'grant',id:entry.id}),/共享库存不足/);
+    assert.equal(JSON.stringify(h.ps('ai_0').privateView()),aiBefore);
+    h.invariants();
+  } finally {h.m.dispose();}
+});
+
+const DIY_SLOT='chess_char_6_diy1_a';
+function diyFixture(wantBanned=false) {
+  for(let seed=1;seed<=50;seed++) {
+    const f=fixture({seed,seats:[
+      {seat:0,playerId:'p_0',name:'Clem',isBot:false,connected:true,diy:{[DIY_SLOT]:{charId:'char_4231_clemnt',skillIndex:2}}},
+      {seat:1,playerId:'p_1',name:'Sharp',isBot:false,connected:true,diy:{[DIY_SLOT]:{charId:'char_609_acguad'}}},
+      {seat:2,playerId:'ai_0',name:'AI',isBot:true,connected:true},
+    ]});
+    if(f.h.ps('p_0').diyBanned.includes(DIY_SLOT)===wantBanned) return f;
+    f.h.m.dispose();
+  }
+  throw new Error('No matching deterministic DIY fixture');
+}
+
+test('new self-selected operators use player-specific names, icons, grants and private stock', {skip:!DATA.backups?.diy}, async t => {
+  const {h,lobby,body}=diyFixture();
+  const srv=await startServer({host:'127.0.0.1',port:0,quiet:true});
+  try {
+    attachLocalTools(srv);
+    srv.lobby.rooms.set('TEST',lobby.rooms.get('TEST'));
+    const catalog=async playerId => (await fetch(srv.url+'/__local-tools/catalog?'+new URLSearchParams({roomCode:'TEST',matchId:body.matchId,playerId}))).json();
+    const p=h.ps('p_0'), p1=h.ps('p_1');
+    const c0=await catalog('p_0'), c1=await catalog('p_1'), ai=await catalog('ai_0');
+    const entry=c0.chess.find(x=>x.id===DIY_SLOT);
+    assert.equal(entry.name,'克莱门莎');
+    assert.equal(c1.chess.find(x=>x.id===DIY_SLOT).name,'Sharp');
+    assert.ok(!ai.chess.some(x=>x.id===DIY_SLOT));
+    assert.match(entry.icon, /^\/assets\//, 'new operator has a manifest-backed avatar');
+    // Source-only CI intentionally does not download copyrighted game art.
+    if (fs.existsSync(path.join(gameRoot,'public',entry.icon))) {
+      assert.ok((await fetch(srv.url+entry.icon)).ok,'new operator avatar is served');
+    } else t.diagnostic('Avatar HTTP check omitted: source checkout has no game art; URL validation still ran.');
+    const stock=p.diyStock.left(DIY_SLOT), otherStock=p1.diyStock.left(DIY_SLOT);
+    const funds=p.funds;
+    let grant;
+    for(let n=0;n<p.gd.mergeCount(DIY_SLOT);n++) grant=applyEdit(lobby,{...body,field:'chess',operation:'grant',id:DIY_SLOT});
+    assert.equal(grant.name,'克莱门莎');
+    assert.equal(grant.merged,true);
+    assert.equal(p.gd.chess(p.find(grant.uid).piece.id).charId,'char_4231_clemnt');
+    assert.equal(p.diyStock.left(DIY_SLOT),stock-p.gd.goldenCopies);
+    assert.equal(p1.diyStock.left(DIY_SLOT),otherStock);
+    assert.equal(p.funds,funds);
+    assert.ok(h.lastTo('p_0','m.private').hand.some(x=>x?.uid===grant.uid));
+    assert.throws(()=>applyEdit(lobby,{...body,playerId:'ai_0',field:'chess',operation:'grant',id:DIY_SLOT}),/禁用或不可获得/);
+    h.invariants();
+  } finally {srv.lobby.rooms.delete('TEST');h.m.dispose();await srv.close();}
+});
+
+test('banned or unselected DIY slots cannot be granted', {skip:!DATA.backups?.diy}, () => {
+  const {h,lobby,body}=diyFixture(true);
+  try {
+    const p=h.ps('p_0');
+    assert.ok(!catalogOf(h.m,p).chess.some(x=>x.id===DIY_SLOT));
+    const before=JSON.stringify(p.privateView());
+    for(const id of [DIY_SLOT,'chess_char_6_diy2_a','char_4231_clemnt']) {
+      assert.throws(()=>applyEdit(lobby,{...body,field:'chess',operation:'grant',id}),/禁用或不可获得/);
+    }
+    assert.equal(JSON.stringify(p.privateView()),before);
+  } finally {h.m.dispose();}
 });
 
 test('match identity stays stable across rounds, but old edits cannot target a new match in the same room', () => {

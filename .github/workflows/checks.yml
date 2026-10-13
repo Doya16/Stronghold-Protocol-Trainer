@@ -8,6 +8,7 @@ jobs:
     strategy:
       matrix:
         node: [22, 24]
+        game: [v0.1.3, v0.2.5]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -15,7 +16,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: sganggs/Stronghold-Protocol
-          ref: v0.1.3
+          ref: ${{ matrix.game }}
           path: upstream
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6

@@ -88,7 +88,7 @@ function paint() {
   options($('player'), list.map(({m,p,key}) => ({value:key,label:`${p.name}${p.id === me ? '（我）' : p.isBot ? '（AI）' : ''} · ${m.code}`})), list.find(t => t.p.id === me)?.key);
   if ($('player').value !== oldTarget) moneyDirty = layersDirty = false;
   const target = selected(), {m,p} = target || {};
-  const canEdit = snapshot?.apiVersion === 3 && !!p?.editable && !busy;
+  const canEdit = snapshot?.apiVersion === 4 && !!p?.editable && !busy;
   $('refresh').disabled = busy;
   $('player').disabled = !list.length || busy;
   $('status').textContent = !target ? '请先开始一局模拟，进入休整期后即可修改。' : `第 ${m.round} 回合 · ${m.phaseName}${!p.alive ? ' · 该玩家已淘汰' : p.ready ? ' · 已准备，请先取消准备' : !p.editable ? ' · 休整期可修改' : ''}`;
@@ -108,19 +108,19 @@ function paint() {
 }
 async function loadCatalog() {
   const target = selected();
-  if (!target || activeTab === 'values' || snapshot?.apiVersion !== 3) return;
-  const id = target.m.matchId;
-  if (catalog?.matchId === id || catalogLoading === id) return;
-  catalogLoading = id;
+  if (!target || activeTab === 'values' || snapshot?.apiVersion !== 4) return;
+  const id = target.m.matchId, key = target.key;
+  if ((catalog?.matchId === id && catalog?.playerId === target.p.id) || catalogLoading === key) return;
+  catalogLoading = key;
   try {
-    const result = await api('catalog?' + new URLSearchParams({ roomCode:target.m.code, matchId:id }));
-    if (selected()?.m.matchId === id) { catalog = result; paint(); }
-  } catch (e) { if (selected()?.m.matchId === id) notify(e.message, true); }
-  finally { if (catalogLoading === id) catalogLoading = null; }
+    const result = await api('catalog?' + new URLSearchParams({ roomCode:target.m.code, matchId:id, playerId:target.p.id }));
+    if (selected()?.key === key) { catalog = result; paint(); }
+  } catch (e) { if (selected()?.key === key) notify(e.message, true); }
+  finally { if (catalogLoading === key) catalogLoading = null; }
 }
 function paintCatalog(canEdit) {
   if (activeTab === 'values') return;
-  const target = selected(), current = catalog?.matchId === target?.m.matchId ? catalog : null;
+  const target = selected(), current = catalog?.matchId === target?.m.matchId && catalog?.playerId === target?.p.id ? catalog : null;
   const text = $('search').value.trim().toLocaleLowerCase();
   const variant = $('variant').value;
   const rows = (current?.[activeTab === 'item' ? 'items' : 'chess'] || []).filter(x =>
@@ -176,13 +176,13 @@ async function refresh() {
     const next = await api('state');
     if (rev !== revision) return;
     token = next.token; snapshot = next; paint();
-    if (next.apiVersion !== 3) notify('服务尚未更新，请结束当前对局后关闭并重新启动游戏。', true);
+    if (next.apiVersion !== 4) notify('服务尚未更新，请结束当前对局后关闭并重新启动游戏。', true);
   } catch (e) { if (opened) notify('读取失败，请确认本地服务仍在运行。', true); }
   finally { refreshing = false; }
 }
 async function edit(field, value, operation = 'set') {
   const target = selected();
-  if (snapshot?.apiVersion !== 3 || !target?.p.editable || busy) return;
+  if (snapshot?.apiVersion !== 4 || !target?.p.editable || busy) return;
   const grant = field === 'item' || field === 'chess';
   if (!grant && (value === '' || !Number.isSafeInteger(Number(value)))) { notify('请输入整数。', true); return; }
   const bondId = $('bond').value;
