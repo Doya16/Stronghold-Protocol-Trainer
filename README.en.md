@@ -8,9 +8,13 @@
 
 [Download the installer](https://github.com/Doya16/Stronghold-Protocol-Trainer/releases/latest) · [Installation guide](#install) · [In-game feature showcase](#features) · [Community team references](#community) · [Report an issue](https://github.com/Doya16/Stronghold-Protocol-Trainer/issues)
 
-**Trainer v0.3.0 supports base game v0.2.5 and retains v0.1.3 compatibility.** It adds grants for the target player's selected custom operators and accurate shared equipment stock errors. Other base game versions remain unverified and are rejected by the installer.
+**v0.4.0 supports base game v0.3.0.** It follows the expandable overflow queue, displays total and queued counts, cleans the new asset-index cache on exit, and fixes the trainer button covering native start/confirmation controls in small windows. The trainer hides in the room lobby, briefing, strategy draft and operator configuration, then returns on the battlefield. A disconnected service disables edit buttons and displays a reconnect message.
 
-**Upgrading from v0.2.0:** Close the trainer game window, extract the new ZIP, run the installer, select the same game directory, and click **安装 / 启用** (Install / Enable). This updates the trainer only. To upgrade the base game from v0.1.3 to v0.2.5, back up the old directory and use the complete package; the v0.2.5 incremental update only supports v0.2.4.
+**Supported base games: v0.3.0 / v0.2.5 / v0.1.3.** Gold, covenant stacks, items and selected, unbanned custom operators use the current match data. Unverified game versions are rejected.
+
+**Plugin scope:** v0.3.0 rooms with gameplay plugins run in separate match processes. Trainer editing is not supported in those rooms; the panel explains why. Create a room without gameplay plugins to use the trainer. Installed plugin files are user content and are not deleted as cache.
+
+**Upgrading:** Close the game, back up the old game folder, and follow the base game README to update to v0.3.0; use the complete package if unsure which incremental update applies. Extract the new Trainer ZIP, run the installer, select the new game root and click **安装 / 启用** (Install / Enable). Game and Trainer version numbers are independent. Installing the Trainer does not update the base game.
 
 ![Ultimate Simulation, round 3: several covenants at 999 stacks, with the battlefield and preparation area visible](docs/trainer-showcase.png)
 
@@ -37,10 +41,10 @@ The game and installer use Chinese labels. This guide keeps key labels in Chines
 | Requirement | Download / check |
 | --- | --- |
 | Windows x64 | Supported by the current graphical installer |
-| Base game **v0.2.5 complete package** | Download `Stronghold-Protocol-v0.2.5.zip` from the [base game v0.2.5 release](https://github.com/sganggs/Stronghold-Protocol/releases/tag/v0.2.5); existing v0.1.3 installations are also supported |
+| Base game **v0.3.0 complete package** | Download `Stronghold-Protocol-v0.3.0.zip` from the [base game v0.3.0 release](https://github.com/sganggs/Stronghold-Protocol/releases/tag/v0.3.0); existing v0.2.5 / v0.1.3 installations are also supported |
 | Node.js **22 or 24** | [Official Node.js download](https://nodejs.org/zh-cn/download); an existing `runtime/node.exe` in the game directory also works if its version meets the requirement |
 | Chrome or Edge | Used to launch a dedicated game window |
-| Trainer installer | Download `Stronghold-Protocol-Trainer-v0.3.0-win-x64.zip` from [trainer Releases](https://github.com/Doya16/Stronghold-Protocol-Trainer/releases/latest) |
+| Trainer installer | Download `Stronghold-Protocol-Trainer-v0.4.0-win-x64.zip` from [trainer Releases](https://github.com/Doya16/Stronghold-Protocol-Trainer/releases/latest) |
 
 On the trainer release page, find **Assets** near the bottom and choose the attachment ending in **`win-x64.zip`**. `Source code (zip)` and `Source code (tar.gz)` are development source archives, not ready-to-run installers.
 
@@ -71,7 +75,7 @@ D:\Games\Stronghold-Protocol\       ← Select this directory in the installer
 ├─ node_modules\
 └─ scripts\
 
-D:\Downloads\Stronghold-Protocol-Trainer-v0.3.0-win-x64\
+D:\Downloads\Stronghold-Protocol-Trainer-v0.4.0-win-x64\
 └─ Stronghold-Protocol-Trainer-Setup.exe   ← Double-click this installer
 ```
 
@@ -147,7 +151,7 @@ Open **物品** (Items) and search by name, ID, or description, or filter by **t
 
 The base game v0.1.3 list contains 115 items. Each click grants one without spending gold. Acquisition effects and automatic combination are handled by the base game. You still need to equip operators normally and meet consumables' use conditions.
 
-**Base game v0.2.5 shared equipment stock limits still apply.** Normal and enhanced equipment held by the whole team count toward stock. Insufficient stock produces a clear message and no grant; free grants do not mean unlimited stock.
+**Base game v0.2.5 / v0.3.0 shared equipment stock limits still apply.** Normal and enhanced equipment held by the whole team count toward stock. Insufficient stock produces a clear message and no grant; free grants do not mean unlimited stock.
 
 ### Operators: only obtainable operators not banned in the current match
 
@@ -157,9 +161,9 @@ Open **干员** (Operators), search a name or filter by tier, then click a portr
 
 Matching copies combine into an elite according to the base game's rules and may trigger promotion rewards. The list does not directly grant elite forms, summons, or hidden operators. After obtaining an operator, drag them from the preparation area onto the battlefield and choose their direction.
 
-**v0.3.0 supports the base game v0.2.5 custom lineup (自选编队).** Configure operators such as 克莱门莎 in the base game before starting the match. The target player's selected, unbanned picks appear as **自选干员** in the rest phase. Switching targets updates the list; empty slots and another player's picks are excluded. Lineup changes apply to a new match.
+**Custom lineups (自选编队) in base game v0.2.5 / v0.3.0 are supported.** Configure operators such as 克莱门莎 in the base game before starting the match. The target player's selected, unbanned picks appear as **自选干员** in the rest phase. Switching targets updates the list; empty slots and another player's picks are excluded. Lineup changes apply to a new match.
 
-The screenshot shows an elite promotion message at the top, **5 units pending** in the temporary preparation area, and a warning at the bottom: **整备区和暂存区已满，请先腾出位置** (the preparation and overflow areas are full; free up space first). Deploy, combine, or clear space before obtaining more operators. Deployment limits still follow the base game's rules.
+The full-capacity warning in this historical screenshot applies to older base games. **In v0.3.0, the five visible overflow slots are a queue window.** Additional grants wait behind them and refill spaces automatically. The panel shows total and queued counts. Overflow still blocks Ready and follows the native prep-deadline cleanup rules, so deploy, combine, use or clear those resources in time.
 
 <a id="community"></a>
 ## Community references for complete teams and maximum stacks
@@ -184,10 +188,10 @@ Community images do not load reliably through GitHub's image proxy, so the links
 
 ## Game rules and limits
 
-- Each icon click grants one item or operator to the preparation area, then the overflow area if needed. If both are full and no combination is possible, the request is rejected with a message.
+- Each icon click grants one item or operator to the preparation area, then the overflow area if needed. In v0.1.3 / v0.2.5 a full hand and overflow area reject gains unless they combine; v0.3.0 instead uses its expandable queue.
 - Existing matching items or operators may combine immediately, so the number of occupied slots may not increase. Overflow still follows the base game's cleanup rules.
 - Shared operator pool and personal custom-operator stock follow the base game's acquisition and combination flow, including the respective version's accounting for grants when stock is exhausted.
-- Base game v0.2.5 equipment grants are rejected when shared stock is insufficient. This is separate from preparation area capacity.
+- Base game v0.2.5 / v0.3.0 equipment grants are rejected when shared stock is insufficient. This is separate from preparation area capacity.
 - Banned covenants cannot have their stacks changed, and the operator list is filtered again for each match. Requests from an earlier match or round are rejected.
 - Changes apply only to the current match. **Closing the dedicated game window ends the session's service and clears temporary browser data; the current match is not saved.**
 
@@ -203,7 +207,7 @@ Community images do not load reliably through GitHub's image proxy, so the links
 
 The extension lives in `sp-local-tools` and does not modify base game source files. The original launcher scripts remain usable; distinguish them from the trainer's dedicated launcher.
 
-Cleanup covers the current browser profile, cache, and temporary files in `sp-local-tools/runtime-data`, along with processes managed by the extension. Leftovers from abnormal exits, such as power loss, are cleaned on the next launch. Windows logs, system prefetch data, and other operating system records are outside this cleanup scope. If uninstalling finds additional user files in the extension directory, it preserves them and asks you to move them out first.
+Cleanup covers the current browser profile, cache, asset hash index, and temporary files in `sp-local-tools/runtime-data`, along with processes managed by the extension. Leftovers from abnormal exits, such as power loss, are cleaned on the next launch. Windows logs, system prefetch data, and other operating system records are outside this cleanup scope. If uninstalling finds additional user files in the extension directory, it preserves them and asks you to move them out first.
 
 ## FAQ
 
@@ -211,15 +215,15 @@ Cleanup covers the current browser profile, cache, and temporary files in `sp-lo
 | --- | --- |
 | No EXE in the downloaded source archive | Return to Releases and download the ready-to-use `win-x64.zip` installer |
 | Installer reports an incorrect directory | Select the base game root containing `package.json`, `server`, and `public`; check for an extra nested folder |
-| Incompatible base game version | Trainer v0.3.0 supports v0.1.3 / v0.2.5; update an older trainer instead of changing the base game's version number |
+| Incompatible base game version | Trainer v0.4.0 supports v0.1.3 / v0.2.5 / v0.3.0; update an older trainer instead of changing the base game's version number |
 | No trainer panel | Launch through **卫戍协议本地修改器 - 启动**; the original scripts do not load the extension |
 | Buttons appear but changes fail | Confirm the target is alive, not ready, and in the rest phase; read the bottom message, then click **刷新** (Refresh) |
 | **对局已变化** (match changed) | The match or round changed; refresh the panel and retry |
 | A covenant has 999 stacks but is inactive | Stacks do not complete the team; deploy enough members of that covenant |
-| No new card after clicking an icon | Check the preparation area, overflow area, and combination results; full capacity causes an explicit rejection |
-| Insufficient stock despite empty slots | Base game v0.2.5 has a separate team-wide equipment stock limit, including normal and enhanced equipment |
+| No new card after clicking an icon | Check the preparation area, overflow area, and combination results; v0.3.0 queues resources beyond the five visible overflow slots |
+| Insufficient stock despite empty slots | Base game v0.2.5 / v0.3.0 has a separate team-wide equipment stock limit, including normal and enhanced equipment |
 | Cannot find an operator | Check filters and current bans; summons, hidden operators, and elite forms are not listed directly |
-| Cannot find a custom operator such as 克莱门莎 | Use base game v0.2.5 and configure the custom lineup before the match; check the selected player and match bans |
+| Cannot find a custom operator such as 克莱门莎 | Use base game v0.2.5 / v0.3.0 and configure the custom lineup before the match; check the selected player and match bans |
 | Images are blank or replaced with text | Use the complete base game package with assets; items can still be selected by name if images are missing |
 | Gold changes in the next round | Base game income calculations still apply; set the amount again during the next rest phase |
 | The previous match is missing after relaunch | The dedicated launcher uses a temporary session; exiting ends the match and cleans it up |
@@ -239,9 +243,9 @@ pwsh -File scripts/test-installer.ps1 -GameRoot $env:SP_GAME_ROOT
 
 Building requires the .NET Framework 4.x compiler included with Windows and writes the installer to `dist/`. `Setup.Console.exe` uses the same installation logic as the graphical installer for automated acceptance checks; ordinary players do not need it. `scripts/release.ps1` generates a ZIP with documentation and a SHA256 checksum file.
 
-Local v0.3.0 validation passed 15 automated tests on base game v0.2.5 and 12 regression tests on v0.1.3, with 3 newer-version tests skipped on v0.1.3. Coverage includes real WebSocket matches, gold spending, covenant synchronization, item/operator grants, 克莱门莎 custom picks and promotion, player isolation, stock and capacity rejection. Windows install/update/disable/uninstall checks passed for both versions. CI covers base game v0.1.3 / v0.2.5 with Node.js 22 / 24 and a Windows build; see [Actions](https://github.com/Doya16/Stronghold-Protocol-Trainer/actions).
+Local v0.4.0 validation: 16 tests pass on base game v0.3.0 (one legacy capacity test skipped), 15 on v0.2.5 and 12 on v0.1.3, with other version-specific tests skipped as expected. Coverage includes real WebSocket matches, gold spending, covenant synchronization, grants, custom operators, combination, stock and ban checks, expandable overflow and gameplay-plugin room reporting. CI covers all three base games with Node.js 22 / 24 plus a Windows build; see [Actions](https://github.com/Doya16/Stronghold-Protocol-Trainer/actions).
 
-Startup of v0.2.5 through the trainer launcher was confirmed. Full graphical button interaction and close-window cleanup have not been revalidated for this release. Earlier v0.2.0 UI and cleanup results are retained separately in the [test notes](docs/TESTING.md).
+Windows install/update checks, duplicate launch, reinstall blocking during play, and the dedicated stop-and-clean command have been verified. Processes exit, the port closes, and temporary browser data and the asset index are removed. See [test notes](docs/TESTING.md) for actual UI checks and their scope.
 
 ## License and acknowledgments
 

@@ -20,7 +20,7 @@ try {
   // Use the documented port if available; never stop another application.
   for (let port = 3000; port <= 3010; port++) {
     try {
-      server = await startServer({ host: '127.0.0.1', port, quiet: true });
+      server = await startServer({ host: '127.0.0.1', port, quiet: true, assetIndex: { cacheFile: path.join(run, 'asset-hashes.json') } });
       break;
     } catch (e) {
       if (!['EADDRINUSE', 'EACCES'].includes(e.code) || port === 3010) throw e;

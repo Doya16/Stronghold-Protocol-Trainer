@@ -3,12 +3,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
-import { PHASE, PHASE_NAMES, BOND_LAYER_CAP, gameRoot, chessAvatarUrl, itemIconUrl } from './game-api.mjs';
+import { PHASE, PHASE_NAMES, BOND_LAYER_CAP, gameRoot, gameVersion, expandableTemp, chessAvatarUrl, itemIconUrl } from './game-api.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PREFIX = '/__local-tools/';
 export const FUNDS_CAP = 99999;
 const fail = (message, status = 400) => Object.assign(new Error(message), { status });
+const HOSTED_MESSAGE = '此房间启用了玩法插件，暂不支持修改。请新建未启用玩法插件的房间。';
+function requireLocalMatch(m) { if (m?.hosted) throw fail(HOSTED_MESSAGE, 409); }
+const unsupportedMatches = lobby => [...lobby.rooms.values()]
+  .filter(r => r.match?.hosted && !r.match.ended && !r.match.disposed)
+  .map(r => ({ code: r.code, reason: HOSTED_MESSAGE }));
 const bondDisabled = (m, id) => m.gd.modeInactiveBonds.has(id) || m.disabledBonds.includes(id);
 const matchIds = new WeakMap();
 // room.matchKey is a NETWORK rate-limit bucket, null on localhost. It is not match identity.
@@ -21,6 +26,7 @@ export function localMatchId(match) {
 
 const safeIcon = url => typeof url === 'string' && /^\/assets\/[\w./-]+$/.test(url) && !url.includes('..') ? url : null;
 export function catalogOf(m, player = null) {
+  requireLocalMatch(m);
   const gd = player?.gd || m.gd;
   const banned = new Set([...m.bannedChess, ...(player?.diyBanned || [])]);
   const preset = m.gd.visibleChess.filter(id => !banned.has(id) && m.pool.has(id));
@@ -45,7 +51,7 @@ export function catalogOf(m, player = null) {
   };
 }
 function stateOf(lobby) {
-  return [...lobby.rooms.values()].filter(r => r.match && !r.match.ended && !r.match.disposed).map(room => {
+  return [...lobby.rooms.values()].filter(r => r.match && !r.match.hosted && !r.match.ended && !r.match.disposed).map(room => {
     const m = room.match;
     return {
       code: room.code, matchId: localMatchId(m), round: m.round,
@@ -54,6 +60,8 @@ function stateOf(lobby) {
         id: p.playerId, name: p.name, isBot: p.isBot, alive: p.alive, ready: p.ready, funds: p.funds,
         editable: m.phase === PHASE.PREP && p.alive && !p.ready,
         handFree: p.hand.filter(x => !x).length, tempFree: p.temp.filter(x => !x).length,
+        tempExpandable: expandableTemp, tempCount: p.temp.filter(Boolean).length,
+        tempQueued: expandableTemp ? p.temp.slice(5).filter(Boolean).length : 0,
         bonds: m.gd.bondIds.filter(id => !m.gd.bond(id).noStack).map(id => ({
           id, name: m.gd.bond(id).name, layers: p.layers[id] || 0,
           active: !!p.bonds[id]?.active, disabled: bondDisabled(m, id),
@@ -68,6 +76,7 @@ export function applyEdit(lobby, body) {
   const { roomCode, matchId, playerId, round, field, operation = 'set', value, bondId, id } = body;
   const room = typeof roomCode === 'string' && lobby.rooms.get(roomCode);
   const m = room?.match;
+  requireLocalMatch(m);
   if (!m || m.ended || m.disposed || typeof matchId !== 'string' || localMatchId(m) !== matchId) throw fail('对局已变化，本次未修改。请刷新面板后重试。', 409);
   if (m.phase !== PHASE.PREP || round !== m.round) throw fail('仅可在当前回合的休整期修改，请刷新面板。', 409);
   const p = m.players.get(playerId);
@@ -78,7 +87,7 @@ export function applyEdit(lobby, body) {
     const entry = typeof id === 'string' && allowed.find(x => x.id === id);
     if (!entry) throw fail(field === 'chess' ? '该干员在本局被禁用或不可获得。' : '请选择列表中的物品。');
     const merges = field === 'item' ? p.completesItemMerge(id) : p.completesChessMerge(id);
-    if (!p.hand.some(x => !x) && !p.temp.some(x => !x) && !merges) throw fail('整备区和暂存区已满，请先腾出位置。', 409);
+    if (!expandableTemp && !p.hand.some(x => !x) && !p.temp.some(x => !x) && !merges) throw fail('整备区和暂存区已满，请先腾出位置。', 409);
     if (field === 'item' && m.itemPool && !m.itemPool.canGain(id)) throw fail('该物品的本局共享库存不足，未发放。本体会统计全队持有的普通及强化装备。', 409);
     // Native acquisition runs onGain, automatic merges, equipment hooks and pool accounting.
     const piece = field === 'item' ? p.acquireItem(id, { source: 'local-tools' }) : p.acquireChess(id, { source: 'local-tools' });
@@ -134,11 +143,12 @@ export function attachLocalTools(srv) {
       res.end(fs.readFileSync(path.join(here, 'panel.js'))); return;
     }
     if (pathname === PREFIX + 'state' && req.method === 'GET') {
-      json(res, 200, { apiVersion: 4, token, fundsCap: FUNDS_CAP, layerCap: BOND_LAYER_CAP, matches: stateOf(srv.lobby) }); return;
+      json(res, 200, { apiVersion: 5, gameVersion, token, fundsCap: FUNDS_CAP, layerCap: BOND_LAYER_CAP, matches: stateOf(srv.lobby), unsupportedMatches: unsupportedMatches(srv.lobby) }); return;
     }
     if (pathname === PREFIX + 'catalog' && req.method === 'GET') {
       const params = new URL(req.url, origin).searchParams;
       const m = srv.lobby.rooms.get(params.get('roomCode'))?.match;
+      requireLocalMatch(m);
       if (!m || m.ended || m.disposed || localMatchId(m) !== params.get('matchId')) throw fail('对局已变化，请刷新列表。', 409);
       const player = m.players.get(params.get('playerId'));
       if (!player || player.left) throw fail('请选择当前对局的修改对象。', 409);

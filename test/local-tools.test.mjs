@@ -4,7 +4,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 const { makeMatch, DATA } = await gameImport('test/match/harness.js');
-import { startServer, gameImport, gameRoot } from '../payload/game-api.mjs';
+import { startServer, gameImport, gameRoot, gameVersion } from '../payload/game-api.mjs';
 import { attachLocalTools, applyEdit, localMatchId, catalogOf } from '../payload/local-tools.mjs';
 
 function fixture(options = {}) {
@@ -82,7 +82,7 @@ test('HTTP extension is opt-in, validates local access, and applies edits to a r
     assert.equal(state.matches[0].players.length,2);
     assert.ok((await (await fetch(srv.url)).text()).includes('/__local-tools/panel.js'));
     assert.equal((await fetch(srv.url + '/__local-tools/panel.js')).status,200);
-    assert.equal(state.apiVersion,4);
+    assert.equal(state.apiVersion,5);
     const catalog = await (await fetch(srv.url + '/__local-tools/catalog?' + new URLSearchParams({roomCode:'TEST',matchId:body.matchId,playerId:'p_0'}))).json();
     assert.equal(catalog.playerId,'p_0');
     assert.equal((await fetch(srv.url + '/__local-tools/catalog?' + new URLSearchParams({roomCode:'TEST',matchId:body.matchId,playerId:'missing'}))).status,409);
@@ -162,7 +162,7 @@ test('catalog is match-specific; direct requests for banned/hidden/unknown IDs a
   } finally { h.m.dispose(); }
 });
 
-test('overflow uses temporary slots, full inventory rejects without losing objects, full merge works', () => {
+test('legacy overflow rejects a full inventory without loss and allows merges', {skip:gameVersion === '0.3.0'}, () => {
   const {h,lobby,body} = fixture();
   try {
     const p=h.ps('p_0'), c=catalogOf(h.m);
@@ -183,6 +183,59 @@ test('overflow uses temporary slots, full inventory rejects without losing objec
     assert.equal(grant(normal.id).merged,true);
     h.invariants();
   } finally { h.m.dispose(); }
+});
+
+test('0.3.0 grants overflow beyond five visible slots, sync, refill and expire by native rules', {skip:gameVersion !== '0.3.0'}, async () => {
+  const {h,lobby,body}=fixture();
+  const srv=await startServer({host:'127.0.0.1',port:0,quiet:true});
+  try {
+    attachLocalTools(srv); srv.lobby.rooms.set('TEST',lobby.rooms.get('TEST'));
+    const p=h.ps('p_0'), c=catalogOf(h.m);
+    const filler=c.items.find(x=>x.type==='道具' && !h.m.gd.item(x.id).goldenId && !h.m.gd.item(x.id).upgradeChessId);
+    const grant=(id=filler.id,field='item')=>applyEdit(lobby,{...body,field,operation:'grant',id});
+    while(p.hand.some(x=>!x)) grant();
+    for(let n=0;n<7;n++) grant();
+    const unit=grant(c.chess[0].id,'chess');
+    assert.equal(p.temp.filter(Boolean).length,8);
+    assert.equal(h.lastTo('p_0','m.private').temp.filter(Boolean).length,8);
+    assert.equal(p.find(unit.uid).area,'temp');
+    const state=await (await fetch(srv.url+'/__local-tools/state')).json();
+    assert.equal(state.gameVersion,'0.3.0');
+    const view=state.matches[0].players.find(x=>x.id==='p_0');
+    assert.equal(view.tempExpandable,true); assert.equal(view.tempCount,8); assert.equal(view.tempQueued,3);
+    assert.ok(p.setReady(true).error,'overflow still blocks native Ready');
+    // Resolve one native hand action, then the native refill must pull from the queue.
+    const first=p.hand.find(Boolean);
+    assert.ok(p.destroy(first.uid).ok);
+    assert.equal(p.temp.filter(Boolean).length,7);
+    assert.equal(p.hand.filter(Boolean).length,p.hand.length);
+    p.resolveTemp();
+    assert.equal(p.temp.filter(Boolean).length,0);
+    assert.equal(p.find(unit.uid),null);
+    h.invariants();
+  } finally {srv.lobby.rooms.delete('TEST'); h.m.dispose(); await srv.close();}
+});
+
+test('gameplay-plugin match proxies are reported without breaking ordinary rooms or accepting edits', {skip:gameVersion !== '0.3.0'}, async () => {
+  const {MatchProxy}=await gameImport('server/match/host/proxy.js');
+  const proxy=new MatchProxy({host:{post(){throw new Error('Trainer must not post worker commands');}},matchId:'plugin-match',opts:{roomCode:'MOD'}});
+  const {h,lobby,body}=fixture();
+  const srv=await startServer({host:'127.0.0.1',port:0,quiet:true});
+  try {
+    attachLocalTools(srv);
+    srv.lobby.rooms.set('MOD',{code:'MOD',match:proxy});
+    srv.lobby.rooms.set('TEST',lobby.rooms.get('TEST'));
+    const state=await (await fetch(srv.url+'/__local-tools/state')).json();
+    assert.equal(state.matches.length,1); assert.equal(state.matches[0].code,'TEST');
+    assert.equal(state.unsupportedMatches[0].code,'MOD');
+    assert.match(state.unsupportedMatches[0].reason,/玩法插件/);
+    const catalog=await fetch(srv.url+'/__local-tools/catalog?roomCode=MOD');
+    assert.equal(catalog.status,409); assert.match((await catalog.json()).error,/玩法插件/);
+    const edit=await fetch(srv.url+'/__local-tools/edit',{method:'POST',headers:{'Content-Type':'application/json','Origin':srv.url,'X-Local-Tools-Token':state.token},body:JSON.stringify({...body,roomCode:'MOD'})});
+    assert.equal(edit.status,409); assert.match((await edit.json()).error,/玩法插件/);
+    applyEdit(srv.lobby,body); assert.equal(h.ps('p_0').funds,1000);
+    assert.equal(proxy.pending.size,0);
+  } finally {srv.lobby.rooms.delete('MOD'); srv.lobby.rooms.delete('TEST'); h.m.dispose(); await srv.close();}
 });
 
 test('every catalog item can be granted from current game data and synchronized', () => {

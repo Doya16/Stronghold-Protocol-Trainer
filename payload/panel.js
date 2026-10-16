@@ -4,6 +4,7 @@ const endpoint = '/__local-tools/';
 let snapshot, token, opened = false, busy = false, refreshing = false, revision = 0;
 let catalog = null, catalogLoading = null, activeTab = 'values';
 let moneyDirty = false, layersDirty = false, messageTimer;
+let disconnected = false;
 const host = document.createElement('div');
 host.id = 'sp-local-tools';
 const root = host.attachShadow({ mode: 'open' });
@@ -66,6 +67,12 @@ root.innerHTML = `
   </aside>
   <button id="toggle" aria-controls="panel" aria-expanded="false">修改面板</button>`;
 const $ = id => root.getElementById(id);
+// Native loadout and pre-match screens own the bottom-right confirm/start area.
+// Keep this selector in the document: :host-context is unavailable in some browsers.
+const visibilityStyle = document.createElement('style');
+const nativeControls = '.lo, .room-screen, .brief, .draft';
+visibilityStyle.textContent = `body:has(${nativeControls}) #sp-local-tools{display:none!important}`;
+document.head.append(visibilityStyle);
 const keyOf = (m, p) => `${m.code}:${m.matchId}:${p.id}`;
 function targets() { return (snapshot?.matches || []).flatMap(m => m.players.map(p => ({ m, p, key: keyOf(m, p) }))); }
 function selected() { return targets().find(t => t.key === $('player').value); }
@@ -88,10 +95,10 @@ function paint() {
   options($('player'), list.map(({m,p,key}) => ({value:key,label:`${p.name}${p.id === me ? '（我）' : p.isBot ? '（AI）' : ''} · ${m.code}`})), list.find(t => t.p.id === me)?.key);
   if ($('player').value !== oldTarget) moneyDirty = layersDirty = false;
   const target = selected(), {m,p} = target || {};
-  const canEdit = snapshot?.apiVersion === 4 && !!p?.editable && !busy;
+  const canEdit = snapshot?.apiVersion === 5 && !!p?.editable && !busy;
   $('refresh').disabled = busy;
   $('player').disabled = !list.length || busy;
-  $('status').textContent = !target ? '请先开始一局模拟，进入休整期后即可修改。' : `第 ${m.round} 回合 · ${m.phaseName}${!p.alive ? ' · 该玩家已淘汰' : p.ready ? ' · 已准备，请先取消准备' : !p.editable ? ' · 休整期可修改' : ''}`;
+  $('status').textContent = disconnected ? '本地服务已断开，请重新启动游戏后刷新。' : !target ? (snapshot?.unsupportedMatches?.[0]?.reason || '请先开始一局模拟，进入休整期后即可修改。') : `第 ${m.round} 回合 · ${m.phaseName}${!p.alive ? ' · 该玩家已淘汰' : p.ready ? ' · 已准备，请先取消准备' : !p.editable ? ' · 休整期可修改' : ''}`;
   $('funds-now').textContent = p ? `现有 ${p.funds} 金币` : '尚无对局';
   if (!moneyDirty) $('funds').value = p?.funds ?? '';
   const oldBond = $('bond').value;
@@ -108,7 +115,7 @@ function paint() {
 }
 async function loadCatalog() {
   const target = selected();
-  if (!target || activeTab === 'values' || snapshot?.apiVersion !== 4) return;
+  if (!target || activeTab === 'values' || snapshot?.apiVersion !== 5) return;
   const id = target.m.matchId, key = target.key;
   if ((catalog?.matchId === id && catalog?.playerId === target.p.id) || catalogLoading === key) return;
   catalogLoading = key;
@@ -128,7 +135,7 @@ function paintCatalog(canEdit) {
     (!$('tier').value || x.tier === Number($('tier').value)) &&
     (activeTab === 'chess' || !variant || (variant === 'magic' ? x.type === '道具' : x.type === '装备' && x.golden === (variant === 'golden'))));
   $('catalog-note').textContent = !target ? '请先开始一局模拟。' : !current ? '正在读取本局列表…' :
-    `${rows.length} 项${activeTab === 'chess' ? ` · 已排除 ${current.bannedCount} 名禁用干员` : ''} · 整备区空位 ${target.p.handFree} · 暂存区空位 ${target.p.tempFree}`;
+    `${rows.length} 项${activeTab === 'chess' ? ` · 已排除 ${current.bannedCount} 名禁用干员` : ''} · 整备区空位 ${target.p.handFree} · ${target.p.tempExpandable ? `暂存 ${target.p.tempCount} 件（排队 ${target.p.tempQueued} 件）` : `暂存区空位 ${target.p.tempFree}`}`;
   const signature = JSON.stringify([target?.key, activeTab, text, $('tier').value, variant, rows]);
   const grid = $('catalog-grid');
   if (grid.dataset.signature !== signature) {
@@ -175,14 +182,18 @@ async function refresh() {
   try {
     const next = await api('state');
     if (rev !== revision) return;
-    token = next.token; snapshot = next; paint();
-    if (next.apiVersion !== 4) notify('服务尚未更新，请结束当前对局后关闭并重新启动游戏。', true);
-  } catch (e) { if (opened) notify('读取失败，请确认本地服务仍在运行。', true); }
+    token = next.token; snapshot = next; disconnected = false; paint();
+    if (next.apiVersion !== 5) notify('服务尚未更新，请结束当前对局后关闭并重新启动游戏。', true);
+  } catch (e) {
+    if (rev !== revision) return;
+    snapshot = null; token = null; disconnected = true; paint();
+    if (opened) notify('读取失败，请确认本地服务仍在运行。', true);
+  }
   finally { refreshing = false; }
 }
 async function edit(field, value, operation = 'set') {
   const target = selected();
-  if (snapshot?.apiVersion !== 4 || !target?.p.editable || busy) return;
+  if (snapshot?.apiVersion !== 5 || !target?.p.editable || busy) return;
   const grant = field === 'item' || field === 'chess';
   if (!grant && (value === '' || !Number.isSafeInteger(Number(value)))) { notify('请输入整数。', true); return; }
   const bondId = $('bond').value;
@@ -194,7 +205,11 @@ async function edit(field, value, operation = 'set') {
     snapshot = {...snapshot,matches:result.matches}; moneyDirty = layersDirty = false;
     const label = field === 'funds' ? '金币' : target.p.bonds.find(b => b.id === bondId)?.name + '层数';
     notify(grant ? `${target.p.name}：已获得 ${result.change.name}${result.change.merged ? '，已自动合成' : ' ×1'}` : `${target.p.name}：${label} ${result.change.before} → ${result.change.after}`);
-  } catch (e) { notify(e.message, true); needsRefresh = e.status === 409; }
+  } catch (e) {
+    if (!e.status) { snapshot = null; token = null; disconnected = true; }
+    notify(e.status ? e.message : '本地服务连接失败，本次操作结果未确认。请重启游戏后刷新。', true);
+    needsRefresh = e.status === 409;
+  }
   finally { busy = false; paint(); if (needsRefresh) refresh(); }
 }
 function toggle(next = !opened) {
@@ -215,6 +230,7 @@ $('zero-layers').onclick = () => edit('layers', 0); $('max-layers').onclick = ()
 // Stop game keyboard shortcuts while typing or operating the panel.
 for (const type of ['keydown','keyup','keypress','pointerdown','pointerup','click','wheel']) root.addEventListener(type, event => event.stopPropagation());
 document.addEventListener('keydown', event => {
+  if (document.querySelector(nativeControls)) return;
   if (event.ctrlKey && event.shiftKey && event.code === 'KeyM') { event.preventDefault(); event.stopImmediatePropagation(); toggle(); }
   else if (opened && event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); toggle(false); }
   else if (opened && event.composedPath().includes(host)) event.stopPropagation();
